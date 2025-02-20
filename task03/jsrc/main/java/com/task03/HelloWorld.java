@@ -3,7 +3,13 @@ package com.task03;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.syndicate.deployment.annotations.lambda.LambdaHandler;
+import com.syndicate.deployment.annotations.lambda.LambdaUrlConfig;
 import com.syndicate.deployment.model.RetentionSetting;
+import com.syndicate.deployment.model.lambda.url.AuthType;
+import com.syndicate.deployment.model.lambda.url.InvokeMode;
+
+import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,13 +21,35 @@ import java.util.Map;
 	aliasName = "${lambdas_alias_name}",
 	logsExpiration = RetentionSetting.SYNDICATE_ALIASES_SPECIFIED
 )
-public class HelloWorld implements RequestHandler<Object, Map<String, Object>> {
+@LambdaUrlConfig(
+		authType = AuthType.NONE,
+		invokeMode = InvokeMode.BUFFERED
+)
+public class HelloWorld implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
-	public Map<String, Object> handleRequest(Object request, Context context) {
-		System.out.println("Hello from lambda");
-		Map<String, Object> resultMap = new HashMap<String, Object>();
-		resultMap.put("statusCode", 200);
-		resultMap.put("message", "Hello from Lambda");
-		return resultMap;
+	@Override
+	public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent request, Context context) {
+		String path = request.getRequestContext().getHttp().getPath();
+		String method = request.getRequestContext().getHttp().getMethod();
+
+		int statusCode;
+		String responseBody;
+
+		if ("/hello".equals(path) && "GET".equalsIgnoreCase(method)) {
+			statusCode = 200;
+			responseBody = "{\"statusCode\": 200, \"message\": \"Hello from Lambda\"}";
+		} else {
+			statusCode = 400;
+			responseBody = String.format(
+					"{\"statusCode\": 400, \"message\": \"Bad request syntax or unsupported method. Request path: %s. HTTP method: %s\"}",
+					path, method
+			);
+		}
+
+		return APIGatewayV2HTTPResponse.builder()
+				.withStatusCode(statusCode)
+				.withHeaders(Map.of("Content-Type", "application/json"))
+				.withBody(responseBody)
+				.build();
 	}
 }
